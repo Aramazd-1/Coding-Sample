@@ -1,0 +1,152 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn import preprocessing # Used to do standardization of variables
+from sklearn.decomposition import PCA
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
+from statsmodels.tsa.stattools import adfuller
+from termcolor import colored
+
+
+def adf_test(data, signif = 0.05):
+    adf_results = {}
+    for taker in data.columns:
+        adf_result = adfuller(data[taker].dropna())
+        adf_results[taker] = {'ADF Statistic': adf_result[0], 'p-value': adf_result[1]}
+        print(f'ADF Statistic for {taker}: {adf_result[0]}')
+        print(f'p-value for {taker}: {adf_result[1]}')
+
+        if adf_result[1] > signif:
+            print(colored(f"ADF test for {taker} detects a unit root, indicating non-stationarity.", 'red', 'on_grey'))
+        else:
+            print(colored(f"ADF test for {taker} does not detect a unit root, indicating stationarity", 'green', 'on_grey'))
+
+
+def ploty(data, title='', xlabel='', ylabel='', line_style='-', line_color='blue', grid=False, save_path=None):
+    """
+    Plots the given data with enhanced customization options.
+
+    Parameters:
+    data (array-like): The data to be plotted.
+    title (str): Title of the plot.
+    xlabel (str): Label for the x-axis.
+    ylabel (str): Label for the y-axis.
+    line_style (str): Style of the plot line (e.g., '-', '--', '-.', ':').
+    line_color (str): Color of the plot line.
+    grid (bool): Whether to display a grid.
+    save_path (str): Path to save the plot image, if desired.
+    """
+    plt.figure(figsize=(10, 6))  # Larger figure size
+    plt.plot(data, linestyle=line_style, color=line_color)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    if grid:
+        plt.grid(True)
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Plot saved as {save_path}")
+
+    plt.show()
+
+def add_double_lines_to_latex(latex_str):
+    """
+    Post-process a LaTeX table string to add double lines after each \toprule, \midrule, \bottomrule.
+
+    Args:
+    - latex_str (str): The original LaTeX table string.
+
+    Returns:
+    - str: Modified LaTeX table string with double lines.
+    """
+    # Replace each booktabs command with its double line version
+    latex_str = latex_str.replace('\\toprule', '\\toprule\\toprule')
+    latex_str = latex_str.replace('\\midrule', '\\midrule\\midrule')
+    latex_str = latex_str.replace('\\bottomrule', '\\bottomrule\\bottomrule')
+    return latex_str
+# Example usage:
+#     file.write(add_double_lines_to_latex(hill_estimator_daily.to_latex(index=True, escape=False, column_format='c c c')))
+#     file.write('\n\n')
+def simulate_series(interval, n_observations, series_names, kwargs_list, distribution_function=np.random.normal, mean=0, standardize = 1, std_devs=None,start="2023-01-01"):    
+    """
+    Generates time series data for multiple series based on specified distribution parameters and characteristics.
+
+    Parameters:
+        interval (str): The time interval between observations (e.g., 'D' for daily, 'Q' for quarterly).
+        n_observations (int): The number of observations to generate.
+        series_names (list): A list of names for the generated series.
+        kwargs_list (list): A list of dictionaries, where each dictionary contains distribution-specific parameters
+                            for each series. These parameters include the distribution's parameters (e.g., degrees of
+                            freedom for Student's t-distribution) and any additional parameters for adjusting mean and
+                            standard deviation.
+        distribution_function (function, optional): The probability distribution function used to generate data for each
+                            series. Default is np.random.normal, representing a normal distribution.
+        mean (float, optional): The mean value to be applied to the generated data for each series. Default is 0.
+        start (str, optional): The start date for the time series data. Default is "2023-01-01."
+        Standardize (bool) : If set to true standardization is performed o nthe dataset
+    Returns:
+        pd.DataFrame: A pandas DataFrame containing time series data. Each column in the DataFrame represents a series
+                      with the specified name.
+    """
+    index = pd.date_range(start, periods=n_observations, freq=interval)
+    data = {name: distribution_function(**kwargs, size=n_observations) for name, kwargs in zip(series_names, kwargs_list)}
+    #zip is a built-in Python function that takes two or more sequences and aggregates them into a single iterator of tuples. Each tuple contains elements from each of the input sequences, matched based on their position.
+    data = pd.DataFrame(data, index=index)
+    if standardize == True:
+        data = preprocessing.scale(data)
+    
+    time_series_df = pd.DataFrame(data, index=index, columns= series_names)
+
+    return time_series_df
+#Example for a Normal (for a student t just remove both parameters and place df instead)
+# kwargs_list = [
+#     {'loc': 0, 'scale': 1},  # Parameters for Series1
+#     {'loc': 5, 'scale': 2}   # Parameters for Series2
+# ]
+
+def analyze_pca(data,threshold = 0.95, n_components = 1,standardize=0):
+    """
+    Performs PCA analysis on the given DataFrame and returns the optimal number of components.
+
+    Parameters:
+    - data (pd.DataFrame): The DataFrame on which PCA will be performed.
+    - ncomponents (int): Specifies the number of principal component for PCA
+    - threshold (float): Thresshold of explained variance needed in order to find the optial number of components
+    Returns:
+    - pca: Object 
+    - Principal_components: array of float64 containing principal components
+    """
+    if standardize == True:
+        std_data=StandardScaler().fit_transform(data)
+        data = pd.DataFrame(std_data, index=data.index, columns=data.columns)
+        
+    pca = PCA(n_components)
+    Principal_components = pca.fit_transform(data)
+    pca_fit= pca.fit(data)
+    explained_variance = pca_fit.explained_variance_ratio_
+    cumulative_explained_variance = np.cumsum(explained_variance)
+
+
+    plt.figure(figsize=(8, 4))
+    plt.bar(range(1, len(explained_variance) + 1), explained_variance, alpha=0.5, label='Individual explained variance')
+    plt.step(range(1, len(cumulative_explained_variance) + 1), cumulative_explained_variance, where='mid', label='Cumulative explained variance')
+    plt.axhline(y=threshold, color='r', linestyle='-')
+    plt.text(0.5, threshold, f'{threshold*100}% threshold', color = 'red', va='bottom', ha='right')
+    plt.ylabel('Explained variance ratio')
+    plt.xlabel('Principal component index')
+    plt.legend(loc='best')
+    plt.tight_layout()
+    plt.show()
+    
+    PC_values = np.arange(pca.n_components_) + 1
+    plt.plot(PC_values, pca.explained_variance_ratio_, 'o-', linewidth=2, color='blue')
+    plt.title('Scree Plot')
+    plt.xlabel('Principal Component')
+    plt.ylabel('Variance Explained')
+    plt.xticks(PC_values)
+    plt.show()
+    return pca, Principal_components
+

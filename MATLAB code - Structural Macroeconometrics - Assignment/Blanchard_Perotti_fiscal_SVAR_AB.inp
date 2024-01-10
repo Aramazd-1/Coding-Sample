@@ -1,0 +1,109 @@
+# This script applies Blanchard and Perotti's (2002, QJE) fiscal SVAR AB-model
+# to US quartely data taken from Caldara and Kamps (2017,REStud).
+
+set echo off
+set messages off
+include SVAR.gfn
+
+open DATI_FISCAL.gdt           # open dataset
+
+# TAX: real per-capita LOGGED total tax revenues (including taxes on personal income and corporate taxes) 
+# G:   real  per-capita LOGGED public spending (consumption + investment) 
+# DGP: real per-capita LOGGED GDP 
+
+list X = TAX G GDP             # select three variables to be included
+list Z = const time DD75Q2     # deterministic: constant and time trend + dummy for 1975Q2
+
+FISCAL = SVAR_setup("AB", X, Z, 4)   #specifies the AB-model with four lags of variables X + deterministcs in Z
+FISCAL.horizon = 20                  # max horizon 20 quarters = 5 years
+
+SVAR_restrict(&FISCAL, "Adiag", 1)      # set restrictions on A matrix
+SVAR_restrict(&FISCAL, "A", 1, 2, 0)   
+SVAR_restrict(&FISCAL, "A", 1, 3, -2.08)  # the elasticity -2.08 is calibrated by BP by looking at other studies
+SVAR_restrict(&FISCAL, "A", 2, 1, 0)
+SVAR_restrict(&FISCAL, "A", 2, 3, 0)      # this elasticity is set to zero: many studies report so
+
+SVAR_restrict(&FISCAL, "B", 1, 3, 0)      # set restrictions on B matrix
+SVAR_restrict(&FISCAL, "B", 2, 1, 0)
+SVAR_restrict(&FISCAL, "B", 2, 3, 0)
+SVAR_restrict(&FISCAL, "B", 3, 1, 0)
+SVAR_restrict(&FISCAL, "B", 3, 2, 0)
+
+# FISCAL.snames = defarray("epsT","epsG","epsY")  # names of the shocks
+
+SVAR_estimate(&FISCAL,1)               # estimates specified fiscal AB-SVAR model by ML
+
+Amat = FISCAL.S1                       # recover matrices A and B
+Bmat = FISCAL.S2
+C = Amat\Bmat                          # this is C=inv(A)*B, captures instantaneous impacts 
+
+printf "Constrained Sigma = \n%10.6f", C*C'
+printf "A = \n%10.6f", Amat
+printf "B = \n%10.6f", Bmat
+printf "C (x100) = \n%10.6f", 100*C
+
+loop i = 1 .. 21                      # plots the IRFs: useful to recover dynamic multipliers     
+    printf "\nIRF(%d)\n%10.6f", i-1, mshape(FISCAL.IRFs[i,], 3, 3)
+endloop
+
+rej = SVAR_boot(&FISCAL, 500, 0.90)  # 90% residual-based iid bootstrap based on 500 replications 
+
+# IRFplot(&FISCAL, 1, 1)
+IRFplot(&FISCAL, 1, 3)    # plots the response of DGP to the identified tax shock 
+IRFplot(&FISCAL, 2, 3)    # plots the response of DGP to the identified fiscal spending shock 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
