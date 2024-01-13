@@ -34,9 +34,10 @@ end
         
 VAR = varm('Constant',VAR_Const,'AR',VAR_Pi, 'Trend', VAR_Trend); % Definining the VAR object to be estimate afterwards 
 [EstVAR,EstSE,logLikVAR,Residuals] = estimate(VAR,Data);  % Estimation by ML, the "estimate()" command is provided by Matlab
+Results = summarize(EstVAR);
 
 Const = EstVAR.Constant;     % Here we put the estimates in the left-hand-side matrices            
-Trend = EstVAR.Trend; 
+Trend = EstVAR.Trend; R
 mP=cell(1,p);                %Initializing estimated Pis
 
 for i =1:p
@@ -113,7 +114,7 @@ disp(B),  disp(A) ,disp(SE_B) ,disp(SE_A), disp(Likelihood_SVAR), disp(LR_test_o
 %% Dynamic Multipliers
 C_IRF = A^(-1)*B;   % instantaneous impact at h=0
 HorizonIRF = 20; 
-CompanionMatrix = [mP{1} mP{2} mP{3} mP{4};eye(M*(p-1)) zeros(M*(p-1),M)];           % VAR companion matrix
+ CompanionMatrix = [mP{1} mP{2} mP{3} mP{4};eye(M*(p-1)) zeros(M*(p-1),M)];           % VAR companion matrix
 J=[eye(M) zeros(M,M*(p-1))];                          % selection matrix J used in IRF computation                        
     TETA = zeros(M,M,HorizonIRF+1); %Preallocates for speed
     for h = 0 : HorizonIRF
