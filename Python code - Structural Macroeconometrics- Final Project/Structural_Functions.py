@@ -34,12 +34,12 @@ def Correlogram(data, lower_bound, upper_bound, titlez='Returns', frequency = 'd
     plt.title(f"Correlogram of {frequency.capitalize()} {titlez.capitalize()}")
     plt.show()
     
-def ploty(data, title='', xlabel='', ylabel='', line_style='-', line_color='blue', grid=False, save_path=None):
+def ploty(data, labels, title='', xlabel='', ylabel='', line_styles=None, line_colors=None, grid=False, save_path=None):
     """
-    Plots the given data with enhanced customization options.
+    Plots the given data.
 
     Parameters:
-    data (array-like): The data to be plotted.
+    data (array-like or list of array-like): The data to be plotted.
     title (str): Title of the plot.
     xlabel (str): Label for the x-axis.
     ylabel (str): Label for the y-axis.
@@ -49,7 +49,9 @@ def ploty(data, title='', xlabel='', ylabel='', line_style='-', line_color='blue
     save_path (str): Path to save the plot image, if desired.
     """
     plt.figure(figsize=(10, 6))  # Larger figure size
-    plt.plot(data, linestyle=line_style, color=line_color)
+    for i, d in enumerate(data):
+        plt.plot(d, label=labels[i], linestyle=line_styles[i], color=line_colors[i])
+        
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -59,7 +61,21 @@ def ploty(data, title='', xlabel='', ylabel='', line_style='-', line_color='blue
 
     if save_path:
         plt.savefig(save_path)
-        print(f"Plot saved as {save_path}")
+        print(f"Plot saved at {save_path}")
+
+    plt.show()
+def ploty_old(data,title='', xlabel='', ylabel='', grid=False, save_path=None):
+
+    plt.plot(data)
+    plt.title(f'{title}')
+    plt.xlabel('Time')
+    plt.ylabel(f'{ylabel}')
+    if grid:
+        plt.grid(True)
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Plot saved at {save_path}")
 
     plt.show()
 

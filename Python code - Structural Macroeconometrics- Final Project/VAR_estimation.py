@@ -2,7 +2,7 @@ import numpy as np
 import matlab.engine
 import pandas as pd
 
-def estimate_var_model_const_trend(data, p):
+def estimate_var_model_const_trend(data,eng, p,noprint= False):
     """
     NOTE: It assumes a matlab session is started, to do so type eng = matlab.engine.start_matlab()
     to quit the session: eng.quit() 
@@ -10,7 +10,7 @@ def estimate_var_model_const_trend(data, p):
     ----------
     data :  Numpy df
     p : the number of lags
-
+    noprint: if true prevents printing (useful when doing boot)
     Returns
     -------
     Non_ar_params: A pandas dataframe containing both the constant and the trend of each equation
@@ -19,20 +19,23 @@ def estimate_var_model_const_trend(data, p):
     ar_matrices_dict: A dictionary containing as many numpy arrays as the lags of the estimate model
 
     """
-    eng = matlab.engine.start_matlab()
+    #eng = matlab.engine.start_matlab()
     # Check the type of 'data' and convert to MATLAB compatible format
+    
     if isinstance(data, pd.DataFrame):
-        # Convert pandas DataFrame to MATLAB compatible format (list of lists)
-        matlab_data = matlab.double(data.values.tolist())
-        variable_names = data.columns.tolist()
-        print("dataframe loaded")
+            # Convert pandas DataFrame to MATLAB compatible format (list of lists)
+            matlab_data = matlab.double(data.values.tolist())
+            variable_names = data.columns.tolist()
+            if noprint is False:
+                print("dataframe loaded")
     elif isinstance(data, np.ndarray):
-        # Convert NumPy array to MATLAB compatible format
-        matlab_data = matlab.double(data.tolist())
-        variable_names = [f'Var{i+1}' for i in range(data.shape[1])]
-        print("array loaded")
+            # Convert NumPy array to MATLAB compatible format
+            matlab_data = matlab.double(data.tolist())
+            variable_names = [f'Var{i+1}' for i in range(data.shape[1])]
+            if noprint is False:
+                print("array loaded")
     else:
-        raise ValueError("Input data must be a pandas DataFrame or a NumPy array.")
+            raise ValueError("Input data must be a pandas DataFrame or a NumPy array.")
    
     
     # Set up VAR model parameters
@@ -40,8 +43,9 @@ def estimate_var_model_const_trend(data, p):
     T = len(data) - p
     M = data.shape[1]
     k = M*2+ M*M*p
-    print(f'Number of variables:{M}')
-    print(f'Effective sample {T}')
+    if noprint is False:
+        print(f'Number of variables:{M}')
+        print(f'Effective sample {T}')
     # Initialize constant, trend, and AR matrices
     VAR_Const = eng.nan(M, 1)
     VAR_Trend = eng.nan(M, 1)
@@ -75,27 +79,28 @@ def estimate_var_model_const_trend(data, p):
     Sigma_u = np.dot(residuals_array.T, residuals_array) / (T-k)
     Sigma_u_df = pd.DataFrame(Sigma_u, index=variable_names, columns=variable_names)
     
-    eng.quit() # Stop MATLAB engine after all computations are done
+    # eng.quit() # Stop MATLAB engine after all computations are done
     return  Non_ar_params, logLikVAR, Sigma_u_df, ar_matrices_dict, residuals_array
 
-def VAR_lag_selection(data, max_p):
+def VAR_lag_selection(data, eng, max_p, noprint= False):
     """
-    auxiliary function that estimates a var for a given lag order p on given data.
+    auxiliary function that estimates a var for a given lag order p on given data using const and trend.
     Returns the results
     """
     
-    eng = matlab.engine.start_matlab()
+    #eng = matlab.engine.start_matlab()
     # Check the type of 'data' and convert to MATLAB compatible format
+    
     if isinstance(data, pd.DataFrame):
-        # Convert pandas DataFrame to MATLAB compatible format (list of lists)
-        matlab_data = matlab.double(data.values.tolist())
-        print("dataframe loaded")
+            # Convert pandas DataFrame to MATLAB compatible format (list of lists)
+            matlab_data = matlab.double(data.values.tolist())
+            print("dataframe loaded")
     elif isinstance(data, np.ndarray):
-        # Convert NumPy array to MATLAB compatible format
-        matlab_data = matlab.double(data.tolist())
-        print("array loaded")
+            # Convert NumPy array to MATLAB compatible format
+            matlab_data = matlab.double(data.tolist())
+            print("array loaded")
     else:
-        raise ValueError("Input data must be a pandas DataFrame or a NumPy array.")
+            raise ValueError("Input data must be a pandas DataFrame or a NumPy array.")
     
     criteria_dict = {'Lag': [], 'AIC': [], 'BIC': [],'HQC': [], 'LogLikelihood':[]}
     # Set up VAR model parameters
@@ -127,7 +132,7 @@ def VAR_lag_selection(data, max_p):
     # Convert results dictionary to Pandas DataFrame
     criteria_df = pd.DataFrame(criteria_dict)
     criteria_df = criteria_df.set_index('Lag')
-    eng.quit() # Stop MATLAB engine after all computations are done
+    #eng.quit() # Stop MATLAB engine after all computations are done
     return criteria_df
         
         
