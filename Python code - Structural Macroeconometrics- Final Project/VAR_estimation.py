@@ -1,6 +1,7 @@
 import numpy as np
 import matlab.engine
 import pandas as pd
+from statsmodels.tsa.api import VAR
 
 def estimate_var_model_const_trend(data,eng, p,noprint= False):
     """
@@ -14,7 +15,6 @@ def estimate_var_model_const_trend(data,eng, p,noprint= False):
     Returns
     -------
     Non_ar_params: A pandas dataframe containing both the constant and the trend of each equation
-    logLikVAR : log likelihood associated to the estimated VAR model
     Sigma_u : This is the variance-covariance matrix of residuals
     ar_matrices_dict: A dictionary containing as many numpy arrays as the lags of the estimate model
 
@@ -76,12 +76,66 @@ def estimate_var_model_const_trend(data,eng, p,noprint= False):
     
     # Covariance matrix of residuals
     residuals_array = np.array(Residuals._data).reshape(Residuals.size[::-1]).T
-    Sigma_u = np.dot(residuals_array.T, residuals_array) / (T-k)
+    Sigma_u = np.dot(residuals_array.T, residuals_array) /(T-p-1) 
     Sigma_u_df = pd.DataFrame(Sigma_u, index=variable_names, columns=variable_names)
     
     # eng.quit() # Stop MATLAB engine after all computations are done
-    return  Non_ar_params, logLikVAR, Sigma_u_df, ar_matrices_dict, residuals_array
+    return  Non_ar_params, Sigma_u_df, ar_matrices_dict, residuals_array
 
+
+def estimate_var_model_const_trend_ols_boot(data, p, freq='MS',noprint=False):
+    """
+    Estimate a VAR model with a constant and a trend in the bootstrap case
+
+    Parameters
+    ----------
+    orig_data: the original non boot data
+    data : pandas DataFrame or numpy ndarray
+        Time-series data.
+    p : int
+        Number of lags.
+    noprint : bool, optional
+        If True, suppresses printing. Useful for bootstrapping.
+
+    Returns
+    -------
+    non_ar_params : pandas DataFrame
+        DataFrame containing the constant and the trend of each equation.
+    sigma_u : pandas DataFrame
+        Covariance matrix of residuals.
+    ar_matrices_dict : dict
+        Dictionary containing AR matrices for each lag.
+    """
+   
+    if not isinstance(data, (pd.DataFrame, np.ndarray)):
+        raise ValueError("Input data must be a pandas DataFrame or a numpy ndarray.")
+        
+    # Convert numpy array to pandas DataFrame if necessary
+    if isinstance(data, pd.DataFrame):
+        data = data.to_numpy()
+    
+    
+    M = data.shape[1]
+    model = VAR(data)
+    results = model.fit(p, trend='ct')
+
+    if not noprint:
+        print(f'Number of variables: {data.shape[1]}')
+        print(f'Effective sample: {len(data) - p}')
+        print(results.summary())
+
+    
+    results.params = results.params[results.params.shape[0]-M*p:]
+    ar_matrices_dict = {}
+    ar_matrices_dict = {f'AR{i+1}': (results.params).T[:, i*M:(i+1)*M] for i in range(p)}
+    
+    sigma_u = results.sigma_u # Covariance matrix of residuals
+    residuals_array = results.resid
+
+    return sigma_u, ar_matrices_dict, residuals_array
+
+
+# Example usage
 def VAR_lag_selection(data, eng, max_p, noprint= False):
     """
     auxiliary function that estimates a var for a given lag order p on given data using const and trend.

@@ -15,7 +15,14 @@ from statsmodels.graphics.tsaplots import plot_acf as acf
 
 def adf_test(data, signif = 0.05):
     adf_results = {}
-    for taker in data.columns:
+    if isinstance(data, pd.DataFrame):
+        columns = data.columns
+    elif isinstance(data, np.ndarray):
+        columns = range(data.shape[1])
+    else:
+        raise ValueError("Input data must be a pandas DataFrame or a numpy array.")
+
+    for taker in columns:
         adf_result = adfuller(data[taker].dropna())
         adf_results[taker] = {'ADF Statistic': adf_result[0], 'p-value': adf_result[1]}
         print(f'ADF Statistic for {taker}: {adf_result[0]}')
@@ -34,7 +41,7 @@ def Correlogram(data, lower_bound, upper_bound, titlez='Returns', frequency = 'd
     plt.title(f"Correlogram of {frequency.capitalize()} {titlez.capitalize()}")
     plt.show()
     
-def ploty(data, labels, title='', xlabel='', ylabel='', line_styles=None, line_colors=None, grid=False, save_path=None):
+def ploty(data, labels, title='',xticks=None, xlabel='', ylabel='', line_styles=None, line_colors=None, grid=False, save_path=None):
     """
     Plots the given data.
 
@@ -49,13 +56,13 @@ def ploty(data, labels, title='', xlabel='', ylabel='', line_styles=None, line_c
     save_path (str): Path to save the plot image, if desired.
     """
     plt.figure(figsize=(10, 6))  # Larger figure size
-    for i, d in enumerate(data):
-        plt.plot(d, label=labels[i], linestyle=line_styles[i], color=line_colors[i])
-        
+    for i, d in enumerate(data): plt.plot(d, label=labels[i], linestyle=line_styles[i], color=line_colors[i])
+    plt.legend()  
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-
+    if xticks is not None:
+        plt.xticks(xticks)
     if grid:
         plt.grid(True)
 
@@ -198,7 +205,8 @@ def Companion_Matrix_compute(AR_Matrices, M):
         bottom_part = np.hstack([np.eye(M * (p - 1)), np.zeros((M * (p - 1), M))])
         Companion_Matrix = np.vstack([top_row, bottom_part])
     else: 
-        Companion_Matrix = AR_Matrices
+        top_row = np.hstack([AR_Matrices[f"AR{i+1}"] for i in range(p)])
+        Companion_Matrix = top_row
     return Companion_Matrix
     
 def histogram_Normality_test(data, series, column='Return', bins=50, frequency='daily'):
@@ -276,10 +284,36 @@ def select_blocks(blocks, n_blocks):
     stacked_array : The arrays stacked together in a time series format.
 
     """
-    selected_indices = np.random.choice(len(blocks), size=n_blocks, replace=True)
+    selected_indices = np.random.choice(len(blocks), size=n_blocks, replace=False)
     selected_arrays = [blocks[i] for i in selected_indices]
     stacked_array = np.vstack(selected_arrays)
     return stacked_array
     
-    
+def compute_irf(IRF_matrices_boot, hor, Var_data_columns, percentiles=[5, 16, 84, 95]):
+    """
+    Computes statistics for bootstrapped IRF matrices.
+
+    Parameters:
+    - IRF_matrices_boot (numpy.ndarray): 3D array of bootstrapped IRF matrices.
+    - hor (int): The horizon for the IRF calculation.
+    - Var_data_columns (List[str]): List of column names for the DataFrame.
+    - percentiles (List[int]): List of percentiles to compute (default is [5, 16, 84, 95]).
+
+    Returns:
+    - dict: A dictionary of pandas DataFrames containing the calculated statistics.
+    """
+
+    statistics = {}
+    for percentile in percentiles: statistics[f'percentile_{percentile}'] = []
+    statistics['average'] = []
+
+    for h in range(hor + 1):
+        statistics['average'].append(np.mean(IRF_matrices_boot[:, h, :], axis=0))
+        for percentile in percentiles:
+            statistics[f'percentile_{percentile}'].append(np.percentile(IRF_matrices_boot[:, h, :], percentile, axis=0))
+
+    # Convert lists of results to pandas DataFrames
+    for key in statistics: statistics[key] = pd.DataFrame(np.vstack(statistics[key]), index=range(0, hor+1), columns=Var_data_columns)
+
+    return statistics   
 
