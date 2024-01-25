@@ -2,7 +2,8 @@ import numpy as np
 import matlab.engine
 import pandas as pd
 from statsmodels.tsa.api import VAR
-
+from scipy.stats import chi2
+from numba import njit
 def estimate_var_model_const_trend(data,eng, p,noprint= False):
     """
     NOTE: It assumes a matlab session is started, to do so type eng = matlab.engine.start_matlab()
@@ -76,14 +77,13 @@ def estimate_var_model_const_trend(data,eng, p,noprint= False):
     
     # Covariance matrix of residuals
     residuals_array = np.array(Residuals._data).reshape(Residuals.size[::-1]).T
-    Sigma_u = np.dot(residuals_array.T, residuals_array) /(T-p-1) 
+    Sigma_u = np.dot(residuals_array.T, residuals_array) /(T-M*p-2) 
     Sigma_u_df = pd.DataFrame(Sigma_u, index=variable_names, columns=variable_names)
     
     # eng.quit() # Stop MATLAB engine after all computations are done
     return  Non_ar_params, Sigma_u_df, ar_matrices_dict, residuals_array
 
-
-def estimate_var_model_const_trend_ols_boot(data, p, freq='MS',noprint=False):
+def estimate_var_model_const_trend_ols_boot(data, p, freq='MS',noprint=False,returnconst=False):
     """
     Estimate a VAR model with a constant and a trend in the bootstrap case
 
@@ -103,10 +103,9 @@ def estimate_var_model_const_trend_ols_boot(data, p, freq='MS',noprint=False):
         DataFrame containing the constant and the trend of each equation.
     sigma_u : pandas DataFrame
         Covariance matrix of residuals.
-    ar_matrices_dict : dict
-        Dictionary containing AR matrices for each lag.
-    """
-   
+    ar_matrices : array
+        array containing AR matrices for each lag.
+    # """
     if not isinstance(data, (pd.DataFrame, np.ndarray)):
         raise ValueError("Input data must be a pandas DataFrame or a numpy ndarray.")
         
@@ -114,25 +113,29 @@ def estimate_var_model_const_trend_ols_boot(data, p, freq='MS',noprint=False):
     if isinstance(data, pd.DataFrame):
         data = data.to_numpy()
     
-    
     M = data.shape[1]
     model = VAR(data)
     results = model.fit(p, trend='ct')
-
+    Non_ar_params = results.params[:results.params.shape[0]-M*p]
+    if returnconst == True:
+        Non_ar_params = results.params[:results.params.shape[0]-M*p].T
     if not noprint:
         print(f'Number of variables: {data.shape[1]}')
         print(f'Effective sample: {len(data) - p}')
         print(results.summary())
-
-    
+ 
     results.params = results.params[results.params.shape[0]-M*p:]
-    ar_matrices_dict = {}
-    ar_matrices_dict = {f'AR{i+1}': (results.params).T[:, i*M:(i+1)*M] for i in range(p)}
+    ar_matrices = []
+    for i in range(p):
+        ar_matrix = results.params.T[:, i*M:(i+1)*M]
+        ar_matrices.append(ar_matrix)
     
     sigma_u = results.sigma_u # Covariance matrix of residuals
     residuals_array = results.resid
-
-    return sigma_u, ar_matrices_dict, residuals_array
+    if returnconst == True:
+        return sigma_u, ar_matrices, residuals_array, Non_ar_params
+    else:
+        return sigma_u, ar_matrices, residuals_array
 
 
 # Example usage
@@ -156,7 +159,7 @@ def VAR_lag_selection(data, eng, max_p, noprint= False):
     else:
             raise ValueError("Input data must be a pandas DataFrame or a NumPy array.")
     
-    criteria_dict = {'Lag': [], 'AIC': [], 'BIC': [],'HQC': [], 'LogLikelihood':[]}
+    criteria_dict = {'Lag': [], 'AIC': [], 'BIC': [],'HQC': [], 'LogLikelihood':[],'LR_Test_p_value': []}
     # Set up VAR model parameters
     for p in range(1, max_p+1):
         T = len(data) - p
@@ -182,12 +185,20 @@ def VAR_lag_selection(data, eng, max_p, noprint= False):
         criteria_dict['BIC'].append(bic)
         criteria_dict['HQC'].append(hqc)
         criteria_dict['LogLikelihood'].append(lik)
-        
+    for p in range(1,max_p):
+        logLik_null = criteria_dict['LogLikelihood'][p-1]
+        logLik_alternative = criteria_dict['LogLikelihood'][p]
+        test_stat = -2 * (logLik_null - logLik_alternative)
+        p_value = chi2.sf(test_stat, M*M)
+        criteria_dict['LR_Test_p_value'].append(p_value)
+    criteria_dict['LR_Test_p_value'].append(np.nan)
     # Convert results dictionary to Pandas DataFrame
     criteria_df = pd.DataFrame(criteria_dict)
     criteria_df = criteria_df.set_index('Lag')
     #eng.quit() # Stop MATLAB engine after all computations are done
     return criteria_df
-        
+
+
+
         
     

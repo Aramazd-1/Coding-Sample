@@ -198,14 +198,15 @@ def Companion_Matrix_compute(AR_Matrices, M):
     Companion_Matrix : A 2D array Companion matrix
 
     """
-    
+    if isinstance(AR_Matrices, dict): AR_Matrices = [AR_Matrices[f"AR{i+1}"] for i in range(len(AR_Matrices))]
+
     p= len(AR_Matrices) #number of lags
     if p>1:
-        top_row = np.hstack([AR_Matrices[f"AR{i+1}"] for i in range(p)])
+        top_row = np.hstack([AR_Matrices[i] for i in range(p)])
         bottom_part = np.hstack([np.eye(M * (p - 1)), np.zeros((M * (p - 1), M))])
         Companion_Matrix = np.vstack([top_row, bottom_part])
     else: 
-        top_row = np.hstack([AR_Matrices[f"AR{i+1}"] for i in range(p)])
+        top_row = np.hstack([AR_Matrices[i] for i in range(p)])
         Companion_Matrix = top_row
     return Companion_Matrix
     
@@ -266,9 +267,12 @@ def breusch_test(Residuals, p ):
         print(f"f-test p-value: {f_p_value}\n")
 
 # Functions to implement a moving block bootstrap
+
 def generate_blocks(residuals, block_length):
     n = len(residuals)
     return [residuals[i:i+block_length] for i in range(n-block_length+1)]
+from numba import njit
+
 def select_blocks(blocks, n_blocks):
     """
     Randomly selects blocks from a list containing numpy arrays and gives back data ina time series format
@@ -317,3 +321,20 @@ def compute_irf(IRF_matrices_boot, hor, Var_data_columns, percentiles=[5, 16, 84
 
     return statistics   
 
+def plot_irf_with_confidence_intervals(horizon, central_points, lower_bounds_90, upper_bounds_90, lower_bounds_68, upper_bounds_68, central_color='blue', ci_90_color='red', ci_68_color='green', title=None):
+    plt.figure(figsize=(10, 6))
+
+    # Plot the central points
+    plt.plot(horizon, central_points, color=central_color, label='Central Points')
+
+    # Shade the 90% confidence interval
+    plt.fill_between(horizon, lower_bounds_90, upper_bounds_90, color=ci_90_color, alpha=0.2, label='90% CI')
+
+    # Shade the 68% confidence interval
+    plt.fill_between(horizon, lower_bounds_68, upper_bounds_68, color=ci_68_color, alpha=0.4, label='68% CI')
+
+    plt.title(title if title is not None else 'Impulse Response Function')
+    plt.xlabel('Horizon')
+    plt.ylabel('Response')
+    plt.legend()
+    plt.show()
