@@ -3,7 +3,8 @@ import matlab.engine
 import pandas as pd
 from statsmodels.tsa.api import VAR
 from scipy.stats import chi2
-from numba import njit
+
+
 def estimate_var_model_const_trend(data,eng, p,noprint= False):
     """
     NOTE: It assumes a matlab session is started, to do so type eng = matlab.engine.start_matlab()

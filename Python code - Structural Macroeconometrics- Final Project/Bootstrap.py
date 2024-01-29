@@ -4,6 +4,8 @@ from Structural_Functions import select_blocks, Companion_Matrix_compute
 from VAR_estimation import estimate_var_model_const_trend_ols_boot
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
+
+
 def MBB_parallel(T,p,M,blocks,block_length,Sample_boot,Non_ar_params,AR_matrices,hor):
     Residuals_boot = select_blocks(blocks, int(T / block_length) + 1)[:T, :]  # Randomly samples block with replacement
     Residuals_boot = Residuals_boot - np.mean(Residuals_boot, axis=0, keepdims=True)  # We center residuals

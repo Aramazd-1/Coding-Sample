@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn import preprocessing # Used to do standardization of variables
+import sklearn
 from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
@@ -11,16 +11,50 @@ import scipy.stats as stats
 from statsmodels.stats.diagnostic import acorr_breusch_godfrey
 import statsmodels.api as sm
 import matlab.engine
-from statsmodels.graphics.tsaplots import plot_acf as acf
+import statsmodels.graphics.tsaplots
 
+def plot_eigenvalues_with_unit_disk(companion_matrix):
+    """
+    Plots the eigenvalues of a given companion matrix in the complex-real plane,
+    including the unit circle for reference.
+
+    Parameters:
+    companion_matrix (np.array): The companion matrix whose eigenvalues are to be plotted.
+    """
+
+    # Compute eigenvalues
+    eigenvalues = np.linalg.eigvals(companion_matrix)
+
+    # Create a unit circle
+    theta = np.linspace(0, 2*np.pi, 100)
+    x = np.cos(theta)
+    y = np.sin(theta)
+
+    # Plotting
+    plt.figure(figsize=(6, 6))
+    plt.plot(eigenvalues.real, eigenvalues.imag, 'o', label='Eigenvalues')
+    plt.plot(x, y, label='Unit Circle')
+    plt.axhline(y=0, color='k', linewidth=0.5)
+    plt.axvline(x=0, color='k', linewidth=0.5)
+    plt.xlabel('Real Part')
+    plt.ylabel('Imaginary Part')
+    plt.title('Eigenvalues and Unit Circle in the Complex Plane')
+    plt.grid(True)
+    plt.axis('equal')  # Ensures the aspect ratio is equal to show the unit circle properly
+    plt.legend()
+    plt.show()
+    return eigenvalues
 def adf_test(data, signif = 0.05):
     adf_results = {}
     if isinstance(data, pd.DataFrame):
         columns = data.columns
     elif isinstance(data, np.ndarray):
         columns = range(data.shape[1])
+    elif isinstance(data, pd.Series):
+        data = data.to_frame()  # Convert Series to DataFrame
+        columns = data.columns
     else:
-        raise ValueError("Input data must be a pandas DataFrame or a numpy array.")
+        raise ValueError("Input data must be a pandas DataFrame, Series, or a numpy array.")
 
     for taker in columns:
         adf_result = adfuller(data[taker].dropna())
@@ -35,7 +69,7 @@ def adf_test(data, signif = 0.05):
 
 def Correlogram(data, lower_bound, upper_bound, titlez='Returns', frequency = 'daily'): 
     data = data.dropna().to_numpy() #Last command makes it so that we have a NumPy array.
-    acf(data, alpha= .05,zero=False) # By default is at 5 percent 
+    statsmodels.graphics.tsaplots.plot_acf(data, alpha= .05, zero=False) # By default is at 5 percent
     
     plt.ylim(lower_bound, upper_bound)  #Make these user selectable
     plt.title(f"Correlogram of {frequency.capitalize()} {titlez.capitalize()}")
@@ -61,10 +95,9 @@ def ploty(data, labels, title='',xticks=None, xlabel='', ylabel='', line_styles=
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    if xticks is not None:
-        plt.xticks(xticks)
-    if grid:
-        plt.grid(True)
+    
+    if xticks is not None: plt.xticks(xticks)
+    if grid: plt.grid(True)
 
     if save_path:
         plt.savefig(save_path)
@@ -131,7 +164,7 @@ def simulate_series(interval, n_observations, series_names, kwargs_list, distrib
     #zip is a built-in Python function that takes two or more sequences and aggregates them into a single iterator of tuples. Each tuple contains elements from each of the input sequences, matched based on their position.
     data = pd.DataFrame(data, index=index)
     if standardize == True:
-        data = preprocessing.scale(data)
+        data = sklearn.preprocessing.scale(data)
     
     time_series_df = pd.DataFrame(data, index=index, columns= series_names)
 
@@ -271,7 +304,6 @@ def breusch_test(Residuals, p ):
 def generate_blocks(residuals, block_length):
     n = len(residuals)
     return [residuals[i:i+block_length] for i in range(n-block_length+1)]
-from numba import njit
 
 def select_blocks(blocks, n_blocks):
     """
@@ -321,18 +353,18 @@ def compute_irf(IRF_matrices_boot, hor, Var_data_columns, percentiles=[5, 16, 84
 
     return statistics   
 
-def plot_irf_with_confidence_intervals(horizon, central_points, lower_bounds_90, upper_bounds_90, lower_bounds_68, upper_bounds_68, central_color='blue', ci_90_color='red', ci_68_color='green', title=None):
+def plot_irf_with_confidence_intervals(horizon, central_points, lower_bounds_90, upper_bounds_90, lower_bounds_68, upper_bounds_68,xticks=None, central_color='blue', ci_90_color='red', ci_68_color='green', title=None):
     plt.figure(figsize=(10, 6))
 
     # Plot the central points
-    plt.plot(horizon, central_points, color=central_color, label='Central Points')
-
+    plt.plot(horizon, central_points, color=central_color, label='Maximum P-Value')
     # Shade the 90% confidence interval
     plt.fill_between(horizon, lower_bounds_90, upper_bounds_90, color=ci_90_color, alpha=0.2, label='90% CI')
 
     # Shade the 68% confidence interval
     plt.fill_between(horizon, lower_bounds_68, upper_bounds_68, color=ci_68_color, alpha=0.4, label='68% CI')
-
+    plt.grid(True)
+    if xticks is not None: plt.xticks(xticks)
     plt.title(title if title is not None else 'Impulse Response Function')
     plt.xlabel('Horizon')
     plt.ylabel('Response')
