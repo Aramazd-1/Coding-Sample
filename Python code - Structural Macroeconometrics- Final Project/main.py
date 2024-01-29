@@ -10,7 +10,6 @@ from functools import partial
 
 # User defined functions
 import Structural_Functions
-from Structural_Functions import adf_test
 from VAR_estimation import estimate_var_model_const_trend, estimate_var_model_const_trend_ols_boot, VAR_lag_selection
 from Bootstrap import MBB_parallel, exec_MBB_parallel
 
@@ -26,8 +25,16 @@ def timer(cell_name):
     cell_time[cell_name] = round(elapsed_time, 2)
 
 
-# %% Import and clean climate data
-# np.random.seed(0) #Random seed is set for the consistency of bootstrap result across replications, one can deactivate it since results are robust across simulations even without it
+# %% # Loading and processing climate data:
+# 1. Load climate data for Italy and Croatia from Excel files.
+# 2. Drop irrelevant columns ('fire', 'hail', 'E3CI') for Italy data and compute mean of remaining columns.
+# 3. Insert a new 'E3CI' column in Italy data based on the computed mean.
+# 4. Perform similar operations for Croatia climate data to use as an instrument.
+# 5. Conduct a preliminary analysis of the data including mean and standard deviation.
+# 6. Apply PCA (Principal Component Analysis) to both Italy and Croatia data.
+# 7. Extract and analyze eigenvalues and loadings from PCA.
+# 8. Insert PCA-based E3CI values as new columns in the data.
+# 9. Organize the processed data into a dictionary for easy access and housekeeping.
 
 path = "D:\Study\Github\Coding-Sample\Python code - Structural Macroeconometrics- Final Project\Data"
 
@@ -79,6 +86,17 @@ del climate_data, climate_data_instrument, E3CI_mean, PC, PC_instrument, Princip
 # %% Import and clean data macro ###
 # note we are trying to make sure that all our data is in dataframes here!
 #### User can basically skip this part and directly load Var_data ####
+# Data loading, processing, and preparation for VAR analysis:
+# 1. Set start and end dates for the analysis period.
+# 2. Load and preprocess macroeconomic data from EUROSTAT, including seasonal decomposition and differencing.
+# 3. Load and preprocess additional macroeconomic data (excluding energy uncertainty data).
+# 4. Load and preprocess ECB data, including seasonal and trend decomposition, and logarithmic differencing.
+# 5. Load and preprocess heat and gas price data, including seasonal adjustment and logarithmic differencing.
+# 6. Concatenate various data sources into a single DataFrame for VAR analysis, and insert PCA-based E3CI and net gas prices.
+# 7. Export the prepared VAR data and PCA-instrument data to Excel files.
+# 8. Load and preprocess weak instrument data (global sea level) for optional use in SVAR analysis.
+# 9. Decide between using weak or strong instrument based on 'use_weak' flag and adjust the data accordingly.
+# 10. Perform housekeeping by deleting unused variables to free up memory.
 
 start_date = pd.to_datetime('1997-07-01')
 end_date = pd.to_datetime('2023-06-30')
@@ -155,12 +173,13 @@ else:
 # Housekeeping and cleaning
 del df_macro_eurostat, df_macro_else, start_date, end_date, heatgas_prices, decomposition, df_ECB
 # %% Preliminary Plotting
+#In this cell, preliminary plotting of all the variables is performed
 for _ in climate_dataframes['climate_data'].columns: Structural_Functions.ploty_old(
     climate_dataframes['climate_data'][f"{_}"],
     title=f"{_}")  # Plotting loop
 for _ in Var_data.columns: Structural_Functions.ploty_old(Var_data[f"{_}"], title=f"{_}")  # Plotting loop
-# %% This cell uses matlab with MLik, slower but gives same results and in a dataframe. Hence it's recommended for readability but takes a bit. One can also directly use the other function in the cell below, made array like.
-# Actually, they give a a small difference in the value of the constnat, but it doesn't matter at all since everything else is equal, including the residuals
+# %% This cell uses matlab with MLIK, slower but gives same results and in a dataframe. Hence it's recommended for readability but takes a bit. One can also directly use the other function in the cell below, made array like.
+# Actually, they give a a small difference in the value of the constant, but it doesn't matter at all since everything else is equal, including the residuals
 # import matlab.engine
 # with timer('Var cell'):
 #     adf_test(Var_data) #We run an ADF test on the variables in our dataset to check for their stationarity
@@ -170,13 +189,30 @@ for _ in Var_data.columns: Structural_Functions.ploty_old(Var_data[f"{_}"], titl
 #     eng.quit()
 #     print(add_double_lines_to_latex(criteria_df.to_latex(index=True, escape=False, column_format='c c c c'))) #To manually export the table to latex using console, file.write instead of print if you prefer
 # %%
+#This cell performs:
+# 1. ADF test on all the variables present in VAR_data
+# 2. Estimate a VAR model on VAR_data with p=2, set it to other values if you wish to test
+#Notice that lag selection has been currently implemented for the matlab model (cell above). 
+#One could also employ the automatic best lag selection from python
 with timer('Var cell'):
-    adf_test(Var_data)
     Structural_Functions.adf_test(Var_data)
     Sigma_u, AR_matrices, Residuals, Non_ar_params = estimate_var_model_const_trend_ols_boot(Var_data, p=2,
                                                                                              noprint=False,
                                                                                              returnconst=True)  # If norpint is false then summary and correlation matrix of residuals is printed
-# %% We now proceed to estimate the SVAR model
+# %% Structural VAR analysis and Impulse Response Function (IRF) computation:
+    # 1. Determine the number of variables, effective sample size, number of lags, horizon for IRFs, and number of estimated parameters.
+    # 2. Optionally switch instruments by setting 'use_weak' and uncommenting relevant lines.
+    # 3. Validate the length of the VAR dataset against the instrument.
+    # 4. Compute and print standard deviation of the instrument.
+    # 5. Perform Augmented Dickey-Fuller (ADF) test on the instrument.
+    # 6. Compute Companion Matrix from Autoregressive (AR) matrices.
+    # 7. Plot eigenvalues of the Companion Matrix with respect to the unit disk.
+    # 8. Calculate the sample covariance between the instrument and the residuals, and the corresponding statistics.
+    # 9. Identify the direction of the shock in the VAR model.
+    # 10. Select the response matrix based on the number of lags.
+    # 11. Compute the Impulse Response Functions (IRFs) for the defined horizon and store in a DataFrame.
+    # 12. Compile structural parameters for further analysis or reporting.
+    # 13. Perform housekeeping by deleting temporary variables to conserve memory. 
 # M = AR_matrices["AR1"].shape[0] # Number of variables if you used matlab
 M = AR_matrices[0].shape[0]  # Number of variables
 T = len(Var_data) - len(AR_matrices)  # Effective sample
@@ -195,7 +231,7 @@ else:
         f"Var dataset doesn't have the same length as the instrument, please revise dates by {len(instrument) - len(Var_data)}")
 
 print(f'std dev:{np.std(instrument)} ')
-adf_test(instrument)
+Structural_Functions.adf_test(instrument)
 
 
 Companion_Matrix = Structural_Functions.Companion_Matrix_compute(AR_matrices, M)
@@ -229,10 +265,24 @@ del k_hat, corr_instr, rho_hat_std, rhosqu_hat, psi_hat, eigenvalues, Companion_
 ##############################################################################################################################################################################
 ############ README: choose whether to run this cell/bootstrap procedure or the one below. This one is widely compatible but slower. They yield the same results  ############
 ##############################################################################################################################################################################
+# Bootstrap procedure for Impulse Response Functions (IRFs) in VAR analysis:
+    # 1. Initialize the bootstrap sample with the first 'p' values from the original VAR data.
+    # 2. Define a Moving Block Bootstrap (MBB) function to perform the bootstrap process.
+    # 3. Inside the MBB function:
+    #    - Select blocks of residuals randomly and center them.
+    #    - Generate the bootstrap sample by iterating over time points and applying AR model equations.
+    #    - Estimate the VAR model parameters and compute sample covariance between instrument and residuals for the bootstrap sample.
+    #    - Calculate the corresponding statistics and adjust the direction of shock if necessary.
+    #    - Compute the Companion Matrix and IRFs for each bootstrap iteration.
+    # 4. Set up external parameters for the bootstrap (block length, number of iterations).
+    # 5. Prepare the residuals and initiate the bootstrap process, storing results in a 3D array.
+    # 6. Optionally, use parallel processing for the bootstrap procedure.
+    # 7. Perform housekeeping by deleting temporary variables to optimize memory usage.
+
 Sample_boot = np.zeros((T + p, M))  # We Initialize the sample
 Sample_boot[:p, :] = Var_data.iloc[:p].to_numpy()  # makes first p values equal to the original sample
 
-
+#The function is left here so closer inspection is possible
 def MBB(b,IRF_matrices_boot):  # this is the function that will perform the bootstrap. If you prefer you can run a parallel version of it by using the section below.
     if yesprint == True:
         if (b + 1) % 50 == 0: print(f'botstrap iteration: {b + 1}')
@@ -277,9 +327,18 @@ with timer('Boot cell2'):
     apply(nboots)
     del nboot, nboots, blocks, block_length, Residuals_expanded
     # %% Parallel bootstrap cell
-    # WARNING: if you decide to run the code in this cell, please manually select the strings and manually run them after you run the code up to the structural var estimation. Many interpreters might bug if you use "run this cell" or similar commands.
-    # e.g use ctrl+f9 in spyder or copy this code in the console command
-    # Personally I recommend to run this if you want faster code but otherwise run the numpy vectorization so you can do something else in the meanwhile
+    # Parallel bootstrap procedure for Impulse Response Functions (IRFs) in VAR analysis (Optional):
+    # WARNING: Manual execution recommended due to potential interpreter issues with "run this cell" commands.
+    # 1. The code is set up for parallel execution of the bootstrap process to enhance computational efficiency.
+    # 2. Initialize parameters like block length and number of bootstrap iterations.
+    # 3. Stack residuals and the instrument for joint bootstrapping.
+    # 4. Initialize the 3D array for storing bootstrap results and the bootstrap sample.
+    # 5. Use the 'exec_MBB_parallel' function to execute the Moving Block Bootstrap (MBB) in parallel.
+    # 6. After completion, stack the results into the IRF_matrices_boot array.
+    # 7. Uncomment and run this code section manually for faster execution, especially when using a large number of bootstrap iterations.
+    #    Use methods like Ctrl+F9 in Spyder or copy-paste into the console.
+    # 8. This method is recommended for users who need quicker computation, while others can use the previously defined numpy vectorization.
+    
     # with timer('Boot cellparallel'):
     #     block_length = 12
     #     Residuals_expanded = np.hstack((Residuals, instrument[p:]))  # we stack all residuals together to jointly boot them
@@ -294,6 +353,17 @@ with timer('Boot cell2'):
     #     IRF_matrices_boot = np.stack (results, axis=0)
 
     # %% IRF matrices construction
+    # Analysis and visualization of bootstrapped Impulse Response Functions (IRFs):
+        # 1. Initialize arrays to store the bootstrap mean, various confidence intervals (95%, 90%, 68%, 5%, 10%).
+        # 2. Calculate these statistics for each horizon (h) by averaging and finding percentiles from the bootstrap IRF matrices.
+        # 3. Convert the calculated statistics into DataFrames for easy handling.
+        # 4. Plot IRFs for each variable in the VAR model:
+        #    - Include original estimate, mean, and different percentile-based confidence intervals in the plot.
+        #    - Customize the plot with labels, line styles, and colors for clarity and distinction.
+        # 5. Use the custom 'ploty' function from the 'Structural_Functions' module for plotting.
+        # 6. Perform housekeeping by deleting temporary variables and clearing memory.
+
+
     avg_IRF_hat_matrix_boot = np.zeros((hor + 1, M))  # Bootstrap mean to check for bias
     top_IRF_hat_matrix_boot = np.zeros((hor + 1, M))  # 95 percent confidence interval
     top68_IRF_hat_matrix_boot = np.zeros((hor + 1, M))
@@ -348,6 +418,19 @@ with timer('Boot cell2'):
 del h, line_styles, labels, line_colors, data_to_plot, avg_IRF_hat_matrix_boot, top_IRF_hat_matrix_boot, bot_IRF_hat_matrix_boot, top68_IRF_hat_matrix_boot, bot68_IRF_hat_matrix_boot, top90_IRF_hat_matrix_boot, bot10_IRF_hat_matrix_boot
 # %% Local projections
 ############################################################################################################
+# Projection and visualization of IRFs with confidence intervals:
+    # 1. Set the horizon for IRFs and initialize grids for different instruments (weak/strong).
+    # 2. Convert key dataframes (E3CI_PCA, instrument, Var_data) to numpy arrays for efficient processing.
+    # 3. Implement grid testing to determine p-values at different horizons for each variable in the model.
+    # 4. Construct regression models for each grid value, horizon, and variable, focusing on the instrument's impact.
+    # 5. Calculate and store p-values from these regressions.
+    # 6. Initialize arrays to store bounds for 90% and 68% confidence intervals, and the largest p-values.
+    # 7. Calculate the confidence intervals at each horizon for each variable using the grid testing results.
+    # 8. Plot IRFs with 90% and 68% confidence intervals for each variable:
+    #    - Use custom 'plot_irf_with_confidence_intervals' function for visualizing IRFs with confidence bounds.
+    #    - Additionally, plot the central points (maximum p-value) and different percentile bounds using 'ploty' function.
+    # 9. Customize the plots with labels, colors, and line styles for clarity.
+    # 10. Perform housekeeping by deleting temporary variables and clearing memory.
 
 with timer('projection cell'):
     hor = 24  # The horizon of our IRFs

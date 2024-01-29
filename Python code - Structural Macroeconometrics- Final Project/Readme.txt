@@ -5,3 +5,5 @@ PYTHON dependencies: pandas, matplotlib, numpy, statsmodels, time,  matlab.engin
 Note: 
     - MATLAB DEPENDENCIES can be skipped by simply removing the import "engine.matlab" and not running the related cell. 
 	- One can also avoid using parallel computing dependencies by not running the parallel computing cell and not importing concurrent.futures
+	- Packages are sparsely imported across files, based on where they are needed and to conform with Spyder internal rules. Therefore, it is suggested to check each file's preamble when toying with dependencies
+	- Data import and treatment can be effectively ignored, directly Var_data and instrument can be employed.
