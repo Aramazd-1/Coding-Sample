@@ -128,6 +128,9 @@ Var_data = Var_data.drop('Uncertainty_Italy_News', axis=1).drop('Iprod_Italy_Yea
 Var_data.to_excel(
     excel_writer='D:\Study\Github\Coding-Sample\Python code - Structural Macroeconometrics- Final Project\Data\Var_data.xlsx',
     index=False)
+E3CI_PCA_instrument.to_excel(
+    excel_writer='D:\Study\Github\Coding-Sample\Python code - Structural Macroeconometrics- Final Project\Data\instrument.xlsx',
+    index=False)
 
 # Now we load the instrument
 use_weak = 0  #### IF set to 1 the weak instrument will be used in the SVAR, if 0 the strong one will
