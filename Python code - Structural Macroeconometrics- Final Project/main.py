@@ -200,6 +200,7 @@ with timer('Var cell'):
     Sigma_u, AR_matrices, Residuals, Non_ar_params = estimate_var_model_const_trend_ols_boot(Var_data, p=2,
                                                                                              noprint=False,
                                                                                              returnconst=True)  # If norpint is false then summary and correlation matrix of residuals is printed
+
 # %% Structural VAR analysis and Impulse Response Function (IRF) computation:
 # 1. Determine the number of variables, effective sample size, number of lags, horizon for IRFs, and number of estimated parameters.
 # 2. Optionally switch instruments by setting 'use_weak' and uncommenting relevant lines.
