@@ -13,6 +13,7 @@ import statsmodels.api as sm
 import matlab.engine
 import statsmodels.graphics.tsaplots
 
+
 def plot_eigenvalues_with_unit_disk(companion_matrix):
     """
     Plots the eigenvalues of a given companion matrix in the complex-real plane,
@@ -44,7 +45,9 @@ def plot_eigenvalues_with_unit_disk(companion_matrix):
     plt.legend()
     plt.show()
     return eigenvalues
-def adf_test(data, signif = 0.05):
+
+
+def adf_test(data, signif=0.05):
     adf_results = {}
     if isinstance(data, pd.DataFrame):
         columns = data.columns
@@ -67,7 +70,7 @@ def adf_test(data, signif = 0.05):
         else:
             print(colored(f"ADF test for {taker} does not detect a unit root, indicating stationarity", 'green', 'on_grey'))
 
-def Correlogram(data, lower_bound, upper_bound, titlez='Returns', frequency = 'daily'): 
+def Correlogram(data, lower_bound, upper_bound, titlez='Returns', frequency='daily'):
     data = data.dropna().to_numpy() #Last command makes it so that we have a NumPy array.
     statsmodels.graphics.tsaplots.plot_acf(data, alpha= .05, zero=False) # By default is at 5 percent
     
